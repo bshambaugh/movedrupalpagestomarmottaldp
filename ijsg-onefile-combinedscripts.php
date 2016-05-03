@@ -34,6 +34,9 @@ EasyRdf_Namespace::set('rss', 'http://purl.org/rss/1.0/');
 EasyRdf_Namespace::set('site', 'http://localhost/iksce/ns#');
 $sparql = new EasyRdf_Sparql_Client('http://localhost:8080/marmotta/sparql/');
 
+$rootcontainer = 'http://localhost:8080/marmotta/ldp';
+$target_container = '';
+
 // Include the requests library  ... see ijsg-onefile-combinedscripts
 include('./Requests/library/Requests.php');
 Requests::register_autoloader();
@@ -470,17 +473,35 @@ $filename = $label.'.ttl';
   fclose($fp);
 
 
-$vocabfortaxonomynames =  pushandput($filename);
+$vocabfortaxonomynames =  pushandput($filename,$rootcontainer,$target_container);
 
 return $vocabfortaxonomynames;
 }
 
-function pushandput ($inputfile) {
-// This code creates a new ldp container
+function pushandput ($inputfile,$rootcontainer,$target_container) {
+// create target_container if it does not exist yet...
+$url = $rootcontainer.$target_container;
+$url_one = $url;
+$headers_one = array('Accept' => 'text/turtle');
+$response = Requests::get($url_one,$headers_one);
+if($response->status_code == 404) {
+  $headers = array('Content-Type' => 'text/turtle','Slug' => $target_container);
+  $response = Requests::post($rootcontainer, $headers);
+  $string = $response->raw;
+  preg_match('/Location: http[:\/a-z0-9-_A-Z]*/',$string,$matches);
+  $substring = $matches[0];
+  preg_match('/http[:\/a-z0-9-_A-Z]*/',$substring,$matches);
+  $url = $matches[0];
+}
+//echo 'The present url is'.$url;
+// This code creates a new ldp containerh
 $containertitle = preg_replace('/\.ttl/','',$inputfile);
-$url = 'http://localhost:8080/marmotta/ldp/';
+//This was inherited from above.
+//$url = $rootcontainer.$target_container;
+//$url = 'http://localhost:8080/marmotta/ldp/';
 // add a GET request here
-$url_two = $url.$containertitle;
+$url_two = $url.'/'.$containertitle;
+//echo 'the url with container title is'.$url_two;
 $headers_two = array('Accept' => 'text/turtle');
 $response = Requests::get($url_two,$headers_two);
 if($response->status_code == 404){
@@ -553,10 +574,5 @@ function putrequest($inputfile,$url) {
   fclose($handle);
 
 }
-
-
-
-
-
 
  ?>
