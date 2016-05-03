@@ -15,8 +15,8 @@
      * @license    http://unlicense.org/
      */
 
-    set_include_path(get_include_path() . PATH_SEPARATOR . '../easyrdf-0.9.0/lib/');
-    require_once "../easyrdf-0.9.0/lib/EasyRdf.php";
+    set_include_path(get_include_path() . PATH_SEPARATOR . './easyrdf-0.9.0/lib/');
+    require_once "./easyrdf-0.9.0/lib/EasyRdf.php";
 //    require_once "./easyrdf-0.9.0/examples/html_tag_helpers.php";
 
     // Setup some additional prefixes for the Drupal Site
@@ -68,8 +68,9 @@ $taxvocabbyname = array('ISP_Column','Tags');
  $result = $sparql->query(
      '
     SELECT * {
-     SERVICE <http://your_sparql_endpoint_here> {
-     SELECT DISTINCT ?s { ?s ?p ?o . }
+     SERVICE <your_sparql_endpoint_here> {
+     SELECT DISTINCT ?s { ?s ?p ?o .
+     FILTER regex(?s, "/portal/") }
    }
  }'
  );
@@ -80,12 +81,31 @@ $taxvocabbyname = array('ISP_Column','Tags');
 
 // Populate the storage arrays including the schema:isRelatedTo predicate
  foreach ($result as $key => $value) {
-     $subarray[$key] = $value->s;
+    array_push($subarray,$value->s);
  }
 
- $subarraymatches = array();
+ $result = $sparql->query(
+     '
+    SELECT * {
+     SERVICE <your_sparql_endpoint_here> {
+     SELECT DISTINCT ?s { ?s ?p ?o .
+     FILTER regex(?s, "/content/") }
+   }
+ }'
+ );
+
+// Populate the storage arrays including the schema:isRelatedTo predicate
+ foreach ($result as $key => $value) {
+    array_push($subarray,$value->s);
+ }
+
+foreach($subarray as $key => $value) {
+    echo $subarray[$key]."\n";
+}
+
+// $subarraymatches = array();
 // filter to what you want with regex
- $subarraymatches = preg_grep('/http.*portal/i',$subarray);
+// $subarraymatches = preg_grep('/http.*portal/i',$subarray);
 
 /*
  foreach($subarraymatches as $k => $value) {
@@ -106,9 +126,9 @@ $taxvocabbyname = array('ISP_Column','Tags');
  //$secondarray = array(array());
  $secondarray = array();
 
-foreach($subarraymatches as $k => $value) {
+foreach($subarray as $k => $value) {
 
-$subjechtvar = strval($subarraymatches[$k]);
+$subjechtvar = strval($subarray[$k]);
 $subject = '<'.$subjechtvar.'>';
 
 
@@ -122,7 +142,7 @@ $subject = '<'.$subjechtvar.'>';
 // filter to what you want with regex
 $result = $sparql->query(
     'SELECT * {
-      SERVICE <http://your_sparql_endpoint_here> {
+      SERVICE <your_sparql_endpoint_here> {
       SELECT DISTINCT ?p ?o { '.$subject.' ?p  ?o . }
       }
   }'
@@ -151,9 +171,20 @@ foreach ($predarray as $i => $value) {
 $predarraymap = array();
 $objarraymap = array();
 
+foreach ($predarray as $key => $value) {
+  array_push($predarraymap,$predarray[$key]);
+}
+
+foreach ($objarray as $key => $value) {
+  array_push($objarraymap,$objarray[$key]);
+}
+
+//$predarraymap_final = array();
+//$objarraymap_final = array();
+
 foreach($taxvocabbypredicate as $i => $value_one) {
-  foreach($predarray as $j => $value_two) {
-    if($taxvocabbypredicate[$i] == $predarray[$j]) {
+  foreach($predarraymap as $j => $value_two) {
+    if($taxvocabbypredicate[$i] == $predarraymap[$j]) {
       if($dbg == 1) {
         /*
         echo("We are equal for ".$taxvocabbypredicate[$i]." and ".$predarray[$j]);
@@ -162,9 +193,11 @@ foreach($taxvocabbypredicate as $i => $value_one) {
         echo("\r\n");
         echo("\r\n");
         */
+        // figure out why this does not work for both
         $marmottatags = 'http://localhost:8080/marmotta/ldp/'.$taxvocabbyname[$i];
-         array_push($predarraymap,$predarray[$j]);
-         array_push($objarraymap,taxtolocal($objarray[$j],$marmottatags));
+        // array_push($predarraymap,$predarray[$j]);
+         $objarraymap[$j] = taxtolocal($objarraymap[$j],$marmottatags);
+         echo 'we are equal for: '.$objarraymap[$j];
        }
     } elseif ($taxvocabbypredicate[$i] !== $predarray[$j]) {
       if($dbg == 1) {
@@ -172,8 +205,8 @@ foreach($taxvocabbypredicate as $i => $value_one) {
        echo("We are not equal for ".$taxvocabbypredicate[$i]." and ".$predarray[$j]);
          echo("\r\n");
          */
-          array_push($predarraymap,$predarray[$j]);
-          array_push($objarraymap,$objarray[$j]);
+        //  array_push($predarraymap,$predarray[$j]);
+        //  array_push($objarraymap,$objarray[$j]);
       }
     }
   }
@@ -236,19 +269,31 @@ foreach($thirdarray as $i => $value) {
   */
   // echo("\r\n");
   //
-  $secondarray[strval($subarraymatches[$k])][strval($predarraymap[$i])] = strval($objarraymap[$i]);
+  // foreach($taxvocabbypredicate as $m => $value) {
+      //    if($taxvocabbypredicate[$m] == $predarraymap[$j]) {
+      //    $secondarray[strval($subarray[$k])][strval($predarraymap[$i])] = $objarraymap[$i];
+      //    echo 'The predicate is what we want'.$objarraymap[$i];
+      //    } else {
+          $secondarray[strval($subarray[$k])][strval($predarraymap[$i])] = strval($objarraymap[$i]);
+      //    }
+  //  }
  }
 
 }
 
 print_r($secondarray);
 
+foreach($objarraymap as $key => $value) {
+  echo $objarraymap[$key];
+}
+
 function taxtolocal($objarray,$vocabulary) {
   $objarray_enc = '<'.$objarray.'>';
   preg_match_all('/\/[0-9]*>/',$objarray_enc,$matches);
   $strip1 = preg_replace('/\//','',$matches[0]);
   $strip2 = preg_replace('/>/','',$strip1[0]);
-  $objarrayws = '<'.$vocabulary.'#'.$strip2.'>';
+  $objarrayws =  $vocabulary.'#'.$strip2;
+  //$objarrayws = '<'.$vocabulary.'#'.$strip2.'>';
   return $objarrayws;
 }
 

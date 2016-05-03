@@ -4,7 +4,8 @@ Requests::register_autoloader();
 
 $multiarray = array('key' => array('innerkey' => 'value'),'key2' => array('innerkey2' => 'value2'));
 
-
+$rootcontainer = 'http://localhost:8080/marmotta/ldp/';
+$target_container = 'ispcontent';
 
 /*
  $subarray[0] = $multiarray[0][1];
@@ -85,7 +86,7 @@ foreach($secondarray as $a => $b) {
  // I am going to assume I do not need to create a file by commenting out below..
   fclose($fp);
 
-//rm pushandput($filename);
+ pushandput($filename,$rootcontainer,$target_container);
 
 }
 
@@ -136,37 +137,99 @@ $response = Requests::put($url,$headers,$data);
 
 //pushandput($inputfile);
 
-function pushandput ($inputfile) {
-
+function pushandput ($inputfile,$rootcontainer,$target_container) {
+// create target_container if it does not exist yet...
+$url = $rootcontainer.$target_container;
+$url_one = $url;
+$headers_one = array('Accept' => 'text/turtle');
+$response = Requests::get($url_one,$headers_one);
+if($response->status_code == 404) {
+  $headers = array('Content-Type' => 'text/turtle','Slug' => $target_container);
+  $response = Requests::post($rootcontainer, $headers);
+  $string = $response->raw;
+  preg_match('/Location: http[:\/a-z0-9-_A-Z]*/',$string,$matches);
+  $substring = $matches[0];
+  preg_match('/http[:\/a-z0-9-_A-Z]*/',$substring,$matches);
+  $url = $matches[0];
+}
+//echo 'The present url is'.$url;
+// This code creates a new ldp containerh
 $containertitle = preg_replace('/\.ttl/','',$inputfile);
-// change the portal page name to an appropriate name
-$url = 'http://localhost:8080/marmotta/ldp/isaportal3/';
+//This was inherited from above.
+//$url = $rootcontainer.$target_container;
+//$url = 'http://localhost:8080/marmotta/ldp/';
+// add a GET request here
+$url_two = $url.'/'.$containertitle;
+//echo 'the url with container title is'.$url_two;
+$headers_two = array('Accept' => 'text/turtle');
+$response = Requests::get($url_two,$headers_two);
+if($response->status_code == 404){
+  echo "I do not exist";
+// do a post to create the container
+// Do a post to create the container, and a put to post to it...(do a get to make sure you know what the name of the container is)
+
 $headers = array('Content-Type' => 'text/turtle','Slug' => $containertitle);
 $response = Requests::post($url, $headers);
-
 var_dump($response->body);
+// find the url of the container created
+$string = $response->raw;
+preg_match('/Location: http[:\/a-z0-9-_A-Z]*/',$string,$matches);
+$substring = $matches[0];
+preg_match('/http[:\/a-z0-9-_A-Z]*/',$substring,$matches);
+$url = $matches[0];
 
-?>
+// function put takes input file and url
+// the put request code
+putrequest($inputfile,$url);
 
-<?php
+preg_match('/\/[A-Za-z0-9-_]*$/',$url,$matches);
 
-$handle = fopen($inputfile,'r');
-echo($handle);
-$data = fread($handle, filesize($inputfile));
+$matchessub = $matches[0];
 
-echo($data);
-$url = 'http://localhost:8080/marmotta/ldp/isaportal3/'.$containertitle;
-$existingheaders = get_headers($url);
-print_r($existingheaders);
-echo($existingheaders[5]);
-$etag = preg_replace('/ETag: /i','',$existingheaders[5]);
-echo("\n");
-echo($etag);
-echo("\n");
-$headers = array('Content-Type' => 'text/turtle','If-Match' => $etag,'Slug' => $containertitle);
-//$headers = array('Content-Type' => 'text/turtle','If-Match' => 'W/"1459004153000"','Slug' => 'Penguins are Awesome');
-$response = Requests::put($url, $headers, $data);
-//$response = Requests:_put($url, $headers, json_encode($data));
-var_dump($response->body);
-fclose($handle);
+preg_match('/[A-Za-z0-9-_]*$/',$matchessub,$itwomatches);
+
+// this returns the label of the ldp container ... using only alphanumeric characters and - and _
+return $itwomatches[0];
+// return 'duh';
+
+}  else {
+  echo "I do exist";
+  // do a put to post to the container...(I am not creating a new container with a new name for now..I am trying to overwrite the old)
+   putrequest($inputfile,$url_two);
+
+   preg_match('/\/[A-Za-z0-9-_]*$/',$url_two,$matches);
+
+   $matchessub = $matches[0];
+
+   preg_match('/[A-Za-z0-9-_]*$/',$matchessub,$itwomatches);
+
+   // this returns the label of the ldp container ... using only alphanumeric characters and - and _
+   return $itwomatches[0];
+  //   return 'duh';
+  }
+  // return the name of the ldp container here...It is whatever the thing is called after the forward slash
+}
+
+function putrequest($inputfile,$url) {
+  $handle = fopen($inputfile,'r');
+  echo($handle);
+  $data = fread($handle, filesize($inputfile));
+  echo($data);
+  //$url = 'http://localhost:8080/marmotta/ldp/'.$containertitle;
+  $existingheaders = get_headers($url);
+  print_r($existingheaders);
+  echo($existingheaders[5]);
+  $etag = preg_replace('/ETag: /i','',$existingheaders[5]);
+  echo("\n");
+  echo($etag);
+  echo("\n");
+  // do I need the container tag in the header for the put request, it would be easier if I did not need to know ... try it
+  //$headers = array('Content-Type' => 'text/turtle','If-Match' => $etag,'Slug' => $containertitle);
+  $headers = array('Content-Type' => 'text/turtle','If-Match' => $etag);
+  //$headers = array('Content-Type' => 'text/turtle','If-Match' => 'W/"1459004153000"','Slug' => 'Penguins are Awesome');
+  $response = Requests::put($url, $headers, $data);
+  //$response = Requests:_put($url, $headers, json_encode($data));
+  var_dump($response->body);
+  fclose($handle);
+
 }
